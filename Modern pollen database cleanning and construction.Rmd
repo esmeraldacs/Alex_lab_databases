@@ -13,18 +13,25 @@ library(tidyverse)
 
 ```{r}
 #na.strings = c("", "NA") will treat both empty strings and "NA" as NA values.
-#The check.names = FALSE ensures that the column names are kept as they are in the CSV, without automatic changes like replacing spaces or special characters.
+#check.names = FALSE column names are kept as they are in the CSV, without automatic changes like replacing spaces or special characters.
 pmodern0 <- read.csv("Pmodern (1).csv", check.names = FALSE, na.strings = c("", "NA"))
-#names(pmodern0)[duplicated(names(pmodern0)) | duplicated(names(pmodern0), fromLast = TRUE)]
 
-names(pmodern0) <- make.names(names(pmodern0), unique = TRUE)
-#names(pmodern0)[duplicated(names(pmodern0)) | duplicated(names(pmodern0), fromLast = TRUE)]
+# If we examine, with the line below, the column names of pmodern0, we will find 7 duplicated columns. 
+# In the pmodern0 dataframe, the duplicates appear as if they have the '.1' suffix added virtually, 
+# but the column names are not actually modified. The line below detects these duplicated column names.
+names(pmodern0)[duplicated(names(pmodern0)) | duplicated(names(pmodern0), fromLast = TRUE)]
 
+# This line actually adds a suffix, in this case, "_1", to the duplicated column names.
+# After applying `make.unique`, if we check for duplicates again, we will see there are no duplicates because the suffix has been added to resolve them.
 names(pmodern0) <- make.unique(names(pmodern0), sep = "_")
+#names(pmodern0)[duplicated(names(pmodern0)) | duplicated(names(pmodern0), fromLast = TRUE)]
 
-grep("\\_1$", names(pmodern0), value = TRUE)
+#To see in which column names the suffix was added
+#grep("\\_1$", names(pmodern0), value = TRUE)
+```
 
-# Now, apply the mutate operation
+Creating a single column from the duplicates
+```{r}
 pmodern1 <- pmodern0 |>
   mutate(Cayaponia = Cayaponia + Cayaponia_1,
          Cupania = Cupania + Cupania_1,
@@ -34,19 +41,18 @@ pmodern1 <- pmodern0 |>
          Symmeria = Symmeria + Symmeria_1,
          Xylosma = Xylosma + Xylosma_1) |>
   select(-c(Cayaponia_1, Cupania_1, Symphonia_1, Daphnopsis_1, Gomphrena_1, Symmeria_1, Xylosma_1)) |>
-  mutate(`Combretaceae/Melastomataceae` =  `Combretaceae/Melastomataceae` + Combretaceae) |>
+  mutate(`Combretaceae/Melastomataceae` =  `Combretaceae/Melastomataceae` + Combretaceae) |> #sum the Combretaceae to the Combretaceae/Melastomataceae
   select(-Combretaceae)
   
+#Look for the persistence of duplicates
+#names(pmodern1)[duplicated(names(pmodern1)) | duplicated(names(pmodern1), fromLast = TRUE)]
 
-
-names(pmodern1)[duplicated(names(pmodern1)) | duplicated(names(pmodern1), fromLast = TRUE)]
-# Check if columns with the .1 suffix still exist
-grep("\\_1$", names(pmodern1), value = TRUE)
-
+# Check if columns with the _1 suffix still exist
+#grep("\\_1$", names(pmodern1), value = TRUE)
 ```
 
 
-
+Removing empty rows and knowing how many ID values are missing from the sequence
 ```{r}
 pmodern1 <- pmodern1 |>
   filter(!is.na(ID))
