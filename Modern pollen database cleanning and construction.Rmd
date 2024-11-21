@@ -31,6 +31,7 @@ names(pmodern0) <- make.unique(names(pmodern0), sep = "_")
 ```
 
 Creating a single column from the duplicates
+
 ```{r}
 pmodern1 <- pmodern0 |>
   mutate(Cayaponia = Cayaponia + Cayaponia_1,
@@ -41,8 +42,10 @@ pmodern1 <- pmodern0 |>
          Symmeria = Symmeria + Symmeria_1,
          Xylosma = Xylosma + Xylosma_1) |>
   select(-c(Cayaponia_1, Cupania_1, Symphonia_1, Daphnopsis_1, Gomphrena_1, Symmeria_1, Xylosma_1)) |>
-  mutate(`Combretaceae/Melastomataceae` =  `Combretaceae/Melastomataceae` + Combretaceae) |> #sum the Combretaceae to the Combretaceae/Melastomataceae
-  select(-Combretaceae)
+  mutate(`Combretaceae/Melastomataceae` =  `Combretaceae/Melastomataceae` + Combretaceae,
+         Salicaceae = Salicaceae + Flacourtiaceae) |> #sum the Combretaceae to the Combretaceae/Melastomataceae
+  select(-c(Combretaceae, Flacourtiaceae)) |>
+  rename(Fabaceae = FabPapil)
   
 #Look for the persistence of duplicates
 #names(pmodern1)[duplicated(names(pmodern1)) | duplicated(names(pmodern1), fromLast = TRUE)]
@@ -61,29 +64,55 @@ pmodern1 <- pmodern1 |>
 setdiff(seq(1, max(pmodern1$ID)), pmodern1$ID)
 ```
 
+Adding a column 
+```{r}
+#Pivot longor to re-pivot wider to order the taxa alphabetically
+pmodern2 <- pmodern1 |>
+  pivot_longer(cols = -c(ID:Elevation)) |>
+  arrange(name) |>
+  pivot_wider(id_cols = c(ID:Elevation)) |>
+  mutate(suma = rowSums(across(Abies:Zollernia), na.rm = TRUE))
+
+pmodern2 |>
+  select(suma) |>
+  ggplot() +
+  geom_histogram(aes(x=suma), binwidth = 0.5)
+```
+
 
 ```{r}
-pmodern1
-
+pmodern2 <- pmodern1 |>
+  pivot_longer(cols = -c(ID:Elevation)) |>
+  filter(value > 0) |>
+  group_by(ID) |>
+  mutate(suma = sum(value)) |>
+  mutate(value = case_when(suma > 50 ~ value/100, TRUE ~ value)) |>
+  mutate(suma = sum(value)) |>
+  ungroup() #|>
+#  arrange(name) |>
+#  pivot_wider(id_cols = c(ID:Elevation), values_fill = 0) |>
+#  mutate(suma = rowSums(across(Abies:Zollernia), na.rm = TRUE))
   
+
+pmodern2 |>
+  filter(suma < 0.95 ) |>
+  select(ID, sample,suma) |>
+  distinct() 
+
+
+pmodern2 <- pmodern2 |>
+  group_by(ID) |>
+  mutate(value = case_when(suma < 0.95 ~ ((value /sum(value))*1), TRUE ~ value)) |>
+  mutate(suma = sum(value)) |>
+  ungroup()
 ```
 
 
 
-Contar cuantas muestras son en total
-```{r}
-names <- pmodern |>
-  filter(ID == 2) |>
-  pivot_longer(cols = -c(ID,sample,sourcetype,lon,lat,Elevation)) |>
-  select(name) |>
-  arrange(name)
-  
-any(duplicated(names$name))
-```
 
 
-buscar por duplicados, al menos se que Cupania esta duplicado
-```{r}
 
-```
+
+
+
 
