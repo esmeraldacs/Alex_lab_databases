@@ -9,24 +9,70 @@ library(tidyverse)
 ```
 
 
-```{r}
-pmodern0 <- read.csv("Pmodern (1).csv")
-```
 
 
 ```{r}
-pmodern <- pmodern0 |>
-  filter(!is.na(ID)) |>
-  arrange(ID)
+#na.strings = c("", "NA") will treat both empty strings and "NA" as NA values.
+#The check.names = FALSE ensures that the column names are kept as they are in the CSV, without automatic changes like replacing spaces or special characters.
+pmodern0 <- read.csv("Pmodern (1).csv", check.names = FALSE, na.strings = c("", "NA"))
+#names(pmodern0)[duplicated(names(pmodern0)) | duplicated(names(pmodern0), fromLast = TRUE)]
+
+names(pmodern0) <- make.names(names(pmodern0), unique = TRUE)
+#names(pmodern0)[duplicated(names(pmodern0)) | duplicated(names(pmodern0), fromLast = TRUE)]
+
+names(pmodern0) <- make.unique(names(pmodern0), sep = "_")
+
+grep("\\_1$", names(pmodern0), value = TRUE)
+
+# Now, apply the mutate operation
+pmodern1 <- pmodern0 |>
+  mutate(Cayaponia = Cayaponia + Cayaponia_1,
+         Cupania = Cupania + Cupania_1,
+         Symphonia = Symphonia + Symphonia_1,
+         Daphnopsis = Daphnopsis + Daphnopsis_1,
+         Gomphrena = Gomphrena + Gomphrena_1,
+         Symmeria = Symmeria + Symmeria_1,
+         Xylosma = Xylosma + Xylosma_1) |>
+  select(-c(Cayaponia_1, Cupania_1, Symphonia_1, Daphnopsis_1, Gomphrena_1, Symmeria_1, Xylosma_1)) |>
+  mutate(`Combretaceae/Melastomataceae` =  `Combretaceae/Melastomataceae` + Combretaceae) |>
+  select(-Combretaceae)
   
-#Contat cuantas ID son faltantes
-setdiff(seq(1, max(pmodern$ID)), sort(pmodern$ID))
+
+
+names(pmodern1)[duplicated(names(pmodern1)) | duplicated(names(pmodern1), fromLast = TRUE)]
+# Check if columns with the .1 suffix still exist
+grep("\\_1$", names(pmodern1), value = TRUE)
+
 ```
+
+
+
+```{r}
+pmodern1 <- pmodern1 |>
+  filter(!is.na(ID))
+
+
+setdiff(seq(1, max(pmodern1$ID)), pmodern1$ID)
+```
+
+
+```{r}
+pmodern1
+
+  
+```
+
+
 
 Contar cuantas muestras son en total
 ```{r}
-pmodern 
-
+names <- pmodern |>
+  filter(ID == 2) |>
+  pivot_longer(cols = -c(ID,sample,sourcetype,lon,lat,Elevation)) |>
+  select(name) |>
+  arrange(name)
+  
+any(duplicated(names$name))
 ```
 
 
