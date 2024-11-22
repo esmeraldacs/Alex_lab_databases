@@ -107,6 +107,119 @@ pmodern2 <- pmodern2 |>
   ungroup()
 ```
 
+```{r}
+pmodern3 <- pmodern2 |>
+  select(-c(suma)) |>
+  arrange(name) |>
+  pivot_wider(id_cols = c(ID,sample,sourcetype,lon,lat,Elevation),values_fill = 0)
+
+pmodern3_meta <- pmodern3 |>
+  select(ID:Elevation)
+```
+
+
+
+```{r}
+smpd_meta <- smpd_clean |>
+  select(source,site_name,entity_name, latitude,longitude,elevation,basin_size, site_type,entity_type,age_bp,publication,doi) |>
+  distinct() |>
+  filter(entity_type %in% c("lake surface sample","soil sample","moss polster or moss","pollen trap","sediment sample","surface sample", "not known"))
+
+
+#unique(smpd_clean$entity_type)
+```
+
+
+```{r}
+library(geosphere)
+
+glimpse(sample_n(pmodern3_meta, size = 5))
+glimpse(sample_n(smpd_meta, size = 5))
+```
+
+
+```{r}
+distance_threshold <- 5 # Define a distance threshold (in meters)
+
+# Function to calculate distances using distHaversine
+calculate_distance <- function(lat1, lon1, lat2, lon2) {
+  distHaversine(c(lon1, lat1), c(lon2, lat2))
+}
+
+# Calculate the closest match for smpd_meta samples
+smpd_meta_matches <- smpd_meta %>%
+  rowwise() %>%
+  mutate(
+    closest_match_id = which.min(sapply(1:nrow(pmodern3_meta), function(i) 
+      calculate_distance(latitude, longitude, pmodern3_meta$lat[i], pmodern3_meta$lon[i])
+    )),
+    distance_to_match = calculate_distance(
+      latitude, longitude, 
+      pmodern3_meta$lat[closest_match_id], pmodern3_meta$lon[closest_match_id]
+    )
+  ) %>%
+  ungroup() %>%
+  mutate(is_matched = distance_to_match <= distance_threshold) %>%
+  mutate(
+    matched_sample_id = if_else(is_matched, pmodern3_meta$sample[closest_match_id], NA_character_)
+  )
+
+# Calculate the closest match for pmodern3_meta samples
+pmodern3_meta_matches <- pmodern3_meta %>%
+  rowwise() %>%
+  mutate(
+    closest_match_id = which.min(sapply(1:nrow(smpd_meta), function(i) 
+      calculate_distance(lat, lon, smpd_meta$latitude[i], smpd_meta$longitude[i])
+    )),
+    distance_to_match = calculate_distance(
+      lat, lon, 
+      smpd_meta$latitude[closest_match_id], smpd_meta$longitude[closest_match_id]
+    )
+  ) %>%
+  ungroup() %>%
+  mutate(is_matched = distance_to_match <= distance_threshold) %>%
+  mutate(
+    matched_sample_id = if_else(is_matched, smpd_meta$entity_name[closest_match_id], NA_character_)
+  )
+
+# Separate matched and unmatched samples
+matched_smpd_meta <- smpd_meta_matches %>%
+  filter(is_matched) %>%
+  select(site_name, entity_name, latitude, longitude, matched_sample_id, distance_to_match)
+
+unmatched_smpd_meta <- smpd_meta_matches %>%
+  filter(!is_matched) %>%
+  select(site_name, entity_name, latitude, longitude)
+
+matched_pmodern3_meta <- pmodern3_meta_matches %>%
+  filter(is_matched) %>%
+  select(ID, sample, lon,lat, matched_sample_id, distance_to_match)
+
+unmatched_pmodern3_meta <- pmodern3_meta_matches %>%
+  filter(!is_matched) %>%
+  select(ID, sample, lat, lon)
+
+# Combine all results for summary
+summary_result <- list(matched_smpd_meta = matched_smpd_meta,
+                       unmatched_smpd_meta = unmatched_smpd_meta,
+                       matched_pmodern3_meta = matched_pmodern3_meta,
+                       unmatched_pmodern3_meta = unmatched_pmodern3_meta)
+
+summary_result
+
+```
+
+
+```{r}
+ggplot() + 
+ # geom_sf(data = polygon_lt)+
+  geom_point(data=pmodern3_meta, aes(x=lon, y=lat), colour="hotpink", alpha=0.22, size=1.2) +
+  #geom_point(data=alex1, aes(x=lon,y=lat),size=0.3) +
+  geom_point(data= unmatched_smpd_meta, aes(x=longitude, y=latitude), colour="blue", alpha=0.2, size=1) 
+
+```
+
+
 
 
 
