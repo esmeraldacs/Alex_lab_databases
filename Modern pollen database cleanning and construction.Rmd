@@ -117,14 +117,31 @@ pmodern2 <- pmodern2 |>
   ungroup()
 ```
 
+
 ```{r}
 pmodern3 <- pmodern2 |>
   select(-c(suma)) |>
   arrange(name) |>
   pivot_wider(id_cols = c(ID,sample,sourcetype,lon,lat,Elevation),values_fill = 0)
+  
 
 pmodern3_meta <- pmodern3 |>
   select(ID:Elevation)
+
+pmodern3_pollen_percent <- pmodern3 |> select(-c(sample,sourcetype,lon,lat,Elevation))
+```
+
+
+```{r}
+#knowing duplicated names in `sample` column
+pmodern3_meta %>%
+  filter(sample %in% sample[duplicated(sample)]) |>
+  select(sample) |>
+  group_by(sample) |>
+  add_tally() |>
+  ungroup() |>
+  distinct() |>
+  arrange(desc(n))
 ```
 
 
@@ -133,6 +150,63 @@ pmodern3_meta <- pmodern3 |>
 write.csv(pmodern3, "Pmodern_revised.csv", row.names = F)
 
 saveRDS(pmodern3, "Pmodern_revised.rds")
+```
+
+
+
+
+
+Additional steps for adding more samples and checking morrone information
+
+
+
+
+```{r}
+cbi <- smpd_clean |> filter(site_name == "Center for Tropical Forest Science Forest Dynamics Plot")
+
+#write.csv(x = cbi,"Raw_pollen_data/Center for tropical forest dynamics/SMPDSv2_Center_for_tropical_forest_science.csv") 
+
+
+cbi_meta <- cbi |> select(-c(id_site, id_entity)) |>
+  select(id_sample:doi) |>
+  distinct() |>
+  rename(ID = id_sample,
+         sample = site_name,
+         lon = longitude,
+         lat = longitude,
+         Elevation = elevation)
+
+
+cbi_pollen <- cbi |>
+  select(-c(id_site, id_entity, source,site_name,entity_name,latitude, longitude,elevation,basin_size,site_type,entity_type,age_bp,publication,doi))|>
+  pivot_longer(cols = -id_sample) |>
+  filter(value > 0) |>
+  select(name) |>
+  distinct() |>
+  mutate(set_cbi = "cbi")
+```
+
+
+```{r}
+glimpse(sample_n(cbi, size = 5))
+
+names(cbi)
+```
+
+
+```{r}
+pmodern_names <- pmodern3_pollen_percent |>
+  pivot_longer(cols = -ID) |>
+  select(name) |>
+  distinct() |>
+  mutate(set_pmodern = "pmodern")
+```
+
+
+
+```{r}
+names <- left_join(cbi_pollen, pmodern_names)
+  
 ```
 
 
