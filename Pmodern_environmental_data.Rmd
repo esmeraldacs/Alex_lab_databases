@@ -1,0 +1,79 @@
+---
+title: "Database_environmental_data"
+output: html_document
+date: "2024-11-26"
+---
+
+Dataset for extracting the environmental data for each sample of the database
+
+
+Calculamos el numero Hill
+
+```{r}
+pmodern <- readRDS("Pmodern_revised.rds")
+```
+
+
+```{r}
+pmp_meta <- pmodern$metadata
+pmp_pollen <- pmodern$pollen_percent
+```
+
+
+
+```{r}
+#Hill number
+poll_clim_amalg2_hill <- poll_clim_amalg2 %>%
+   dplyr::select(Abatia:Zygophyllaceae) |>
+    analogue::n2("sites") |>
+  as_tibble() |>
+  rename(hill_n2 = value)
+
+
+poll_clim_amalg2_hill_1 <- bind_cols(poll_clim_amalg2, poll_clim_amalg2_hill) |>
+  select(id_sample,entity_name,latitude,longitude,elevation,hill_n2, everything())
+
+
+poll_clim_amalg2_hill_1 |>
+  ggplot2::ggplot(aes(x=hill_n2)) +
+  geom_histogram(bins = 100, color="gray60", fill="gray60") +
+  scale_x_continuous(n.breaks = 18, expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,4)) +
+  geom_vline(xintercept = 2, linetype="dotted", 
+                color = "red", size=0.8) + 
+  labs(title = "Hill number", subtitle = "Modern (training) dataset") +
+  theme_test()
+```
+
+
+
+#Calculation of the Hill number
+```{r}
+hill <- pmp_pollen |>
+  dplyr::select(Abies:Zollernia) |>
+  analogue::n2("sites") |>
+  as_tibble() |>
+  rename(hill_n2 = value)
+  
+
+ecological <- bind_cols(pmp_pollen, hill) |>
+  select(ID, hill_n2)
+
+
+ggplot2::ggplot(data=ecological, aes(x=hill_n2)) +
+  geom_histogram(bins = 100, color="gray60", fill="gray60") +
+  scale_x_continuous(n.breaks = 20, expand = c(0,0)) +
+ # geom_vline(xintercept = 2, linetype="dotted",  color = "red", size=0.8) + 
+  labs(title = "Hill number", subtitle = "Pmodern dataset") +
+  theme_test()
+```
+
+
+Human impact index
+```{r}
+
+```
+
+
+
+
