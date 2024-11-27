@@ -1,0 +1,164 @@
+---
+title: "Database_environmental_data"
+output: html_document
+date: "2024-11-26"
+---
+
+Dataset for extracting the environmental data for each sample of the database
+
+
+Calculamos el numero Hill
+
+```{r}
+pmodern <- readRDS("Pmodern_revised.rds")
+```
+
+
+```{r}
+pmp_meta <- pmodern$metadata
+pmp_pollen <- pmodern$pollen_percent
+```
+
+
+
+```{r}
+#Hill number
+poll_clim_amalg2_hill <- poll_clim_amalg2 %>%
+   dplyr::select(Abatia:Zygophyllaceae) |>
+    analogue::n2("sites") |>
+  as_tibble() |>
+  rename(hill_n2 = value)
+
+
+poll_clim_amalg2_hill_1 <- bind_cols(poll_clim_amalg2, poll_clim_amalg2_hill) |>
+  select(id_sample,entity_name,latitude,longitude,elevation,hill_n2, everything())
+
+
+poll_clim_amalg2_hill_1 |>
+  ggplot2::ggplot(aes(x=hill_n2)) +
+  geom_histogram(bins = 100, color="gray60", fill="gray60") +
+  scale_x_continuous(n.breaks = 18, expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,4)) +
+  geom_vline(xintercept = 2, linetype="dotted", 
+                color = "red", size=0.8) + 
+  labs(title = "Hill number", subtitle = "Modern (training) dataset") +
+  theme_test()
+```
+
+
+
+#Calculation of the Hill number
+```{r}
+hill <- pmp_pollen |>
+  dplyr::select(Abies:Zollernia) |>
+  analogue::n2("sites") |>
+  as_tibble() |>
+  rename(hill_n2 = value)
+  
+
+ecological <- bind_cols(pmp_pollen, hill) |>
+  select(ID, hill_n2)
+
+
+ggplot2::ggplot(data=ecological, aes(x=hill_n2)) +
+  geom_histogram(bins = 100, color="gray60", fill="gray60") +
+  scale_x_continuous(n.breaks = 20, expand = c(0,0)) +
+ # geom_vline(xintercept = 2, linetype="dotted",  color = "red", size=0.8) + 
+  labs(title = "Hill number", subtitle = "Pmodern dataset") +
+  theme_test()
+```
+
+
+Interest region
+```{r}
+latam_polygon <- rnaturalearth::ne_countries(scale = 'large', returnclass = "sf") |>
+  dplyr::filter(name %in% c("Mexico", "Guatemala", "Belize", "El Salvador", "Honduras", "Nicaragua", "Costa Rica", "Panama", "Dominican Rep.","Cuba", "Colombia", "Venezuela", "Ecuador", "Guyana", "Suriname", "French Guiana", "Peru", "Brazil", "Argentina", "Bolivia", "Uruguay", "Paraguay", "Chile","Puerto Rico","Jamaica")) |>
+  sf::st_union() |>
+  sf::st_crop(ymin = -34, ymax = 22, xmin=-106, xmax=-35) |>
+  sf::st_as_sf() 
+  
+
+ggplot2::ggplot() + ggplot2::geom_sf(data = latam_polygon) + ggplot2::theme_minimal()
+```
+
+
+
+```{r}
+maps <- st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Input/Precipitation_polygon/my_new_polygon.shp") |> filter(Value == 17)
+p2_EPA_north_andes <- sf::st_intersection(maps, sh_polygon) |> filter(Value == "17")
+ggplot() + geom_sf(data = p2_EPA_north_andes) 
+
+p0_andes <- st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/andes_level_17_18.shp")
+ggplot() + geom_sf(data = p0_andes)
+
+p3_north_andes <- st_read("Output_data/north_andes.shp")
+ggplot() + geom_sf(data = p3_north_andes) 
+
+p1_north_hemis <- st_read("Output_data/mean_summer_regions_sf_nh_1.shp")
+ggplot() + geom_sf(data = p1_north_hemis)
+
+p4_sasm2 <- st_read("Output_data/sasm_core2.shp")
+ggplot() + geom_sf(data = p4_sasm2)
+
+p5_sasm3 <- st_read("Output_data/sasm_core3.shp")
+ggplot() + geom_sf(data = p5_sasm3)
+
+p6_sasm4 <- st_read("Output_data/sasm_core2_noITCZ_3.shp")
+#p6_sasm4 <- sf::st_make_valid(p6_sasm4)
+ggplot() + geom_sf(data = p6_sasm4, fill="red")
+```
+
+
+
+We start by the Global terrestrial human footprint
+Venter et al. 2016: https://datadryad.org/stash/dataset/doi:10.5061/dryad.052q5
+
+
+El raster original es de resolucion 1km (i. est. each pixel is 1km per side)
+```{r, warning=FALSE}
+input_file <- "C:/Users/esmer/UoR/Anthropogenic biomes/Global terrestrial human footprint_Venter, O; Sanderson, E; et al. 2016/Dryadv2/Maps/HFP2009.tif"
+output_file <- "C:/Users/esmer/UoR/Anthropogenic biomes/Global terrestrial human footprint_Venter, O; Sanderson, E; et al. 2016/Dryadv2/Maps/HFP2009_reprojected.tif"
+
+# Reproject with gdalwarp
+#gdalUtilities::gdalwarp(srcfile = input_file, dstfile = output_file, t_srs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0 +no_defs")
+```
+
+
+```{r}
+footprint_raster <- raster::raster(output_file)
+
+footprint <- footprint_raster |>
+  raster::crop(raster::extent(-108, -33, -40, 25)) |> 
+  raster::mask(latam_polygon) |>
+  raster::rasterToPoints() |>
+  as_tibble() |>
+  rename(Pressure = HFP2009_reprojected)
+```
+
+
+
+```{r}
+plot_hfp <- ggplot() + 
+  geom_sf(data = latam_polygon) +
+  geom_tile(data = footprint, aes(x = x, y = y, fill = Pressure)) + 
+  scico::scale_fill_scico(palette = 'lipari', begin = 0.05) +
+  labs(title = "The human footprint map for 2009", subtitle = "Venter et al. 2016") +
+  scale_x_continuous(expand = c(0.05,0.05)) +
+  theme_test()
+
+plot_hfp
+```
+
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
