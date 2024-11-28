@@ -156,10 +156,9 @@ saveRDS(pmodern3, "Pmodern_revised.rds")
 
 
 
+
+
 Additional steps for adding more samples and checking morrone information
-
-
-
 
 ```{r}
 cbi <- smpd_clean |> filter(site_name == "Center for Tropical Forest Science Forest Dynamics Plot")
