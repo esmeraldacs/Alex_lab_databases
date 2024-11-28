@@ -79,8 +79,8 @@ Venter et al. 2016: https://datadryad.org/stash/dataset/doi:10.5061/dryad.052q5
 
 El raster original es de resolucion 1km (i. est. each pixel is 1km per side)
 ```{r, warning=FALSE}
-input_file <- "C:/Users/esmer/UoR/Anthropogenic biomes/Global terrestrial human footprint_Venter, O; Sanderson, E; et al. 2016/Dryadv2/Maps/HFP2009.tif"
-output_file <- "C:/Users/esmer/UoR/Anthropogenic biomes/Global terrestrial human footprint_Venter, O; Sanderson, E; et al. 2016/Dryadv2/Maps/HFP2009_reprojected.tif"
+input_file <- "Input data/HFP2009.tif"
+output_file <- "Output_data/HFP2009_reprojected.tif"
 
 # Reproject with gdalwarp
 #gdalUtilities::gdalwarp(srcfile = input_file, dstfile = output_file, t_srs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0 +no_defs")
@@ -110,14 +110,6 @@ pmp_meta$human_footprint_exact <- raster::extract(footprint_raster, pmp_meta[, c
 ```
 
 
-```{r}
-library(raster)
-library(sp)
-
-
-library(sf)
-```
-
 
 ```{r}
 # Step 1: Convert pmp_meta to an sf object
@@ -137,25 +129,7 @@ ggplot() +
 
 # Step 3: Reproject the raster to the same CRS as the points (EPSG:3395)
 footprint_raster_3395 <- projectRaster(footprint_raster, crs = CRS("+init=epsg:3395"))
-
 #writeRaster(footprint_raster_3395, "Output_data/footprint_raster_3395.tif", format = "GTiff", overwrite = TRUE)
-
-# Step 4: Extract raster values within the buffer
-#pmp_meta_sf$HFP2009_values <- extract(footprint_raster_3395, pmp_meta_sf$buffer, 
-                                      # fun = function(x, ...) {
-                                          # if (length(x) > 0) {
-                                             #  x <- na.omit(x) # Remove NA values before processing
-                                               # Return the frequency of each value
-                                              # freq_table <- table(x)
-                                              # return(freq_table)
-                                           #} else {
-                                              # return(NA)
-                                          # }
-                                       #})
-
-#saveRDS(pmp_meta_sf, "Output_data/pmp_meta_sf.rds")
-
-#pmp_meta_sf <- readRDS("Output_data/pmp_meta_sf.rds")
 
 
 pmp_meta_sf$HFP2009_avg <- extract(footprint_raster_3395, pmp_meta_sf$buffer, 
@@ -180,50 +154,90 @@ pmp_meta_sf <- st_transform(pmp_meta_sf, st_crs(latam_polygon))
 # Step 2: Extract coordinates, drop geometry, and convert the buffer column to numeric
 pmp_meta_df <- pmp_meta_sf %>%
   mutate(
-    Pressure_avg12km = as.numeric(HFP2009_avg), # Convert matrix to numeric
+    human_footprint_avg12km = as.numeric(HFP2009_avg), # Convert matrix to numeric
     longitude = st_coordinates(.)[, 1],   # Extract longitude
     latitude = st_coordinates(.)[, 2]     # Extract latitude
   ) %>%
   st_drop_geometry() %>%                  # Remove spatial geometry
-  dplyr::select(-buffer)     
+  dplyr::select(-c(buffer, HFP2009_avg))
 
 
 ggplot() + 
   geom_sf(data = latam_polygon) + 
   theme_minimal() +
   geom_point(data = pmp_meta_df, 
-             aes(x = longitude, y = latitude, fill = Pressure_avg12km, color = Pressure_avg12km), size=0.5) +
+             aes(x = longitude, y = latitude, fill = human_footprint_avg12km, color = human_footprint_avg12km), size=0.5) +
   scale_color_viridis_c(option = "plasma") + # Optional: Adjust the color scale
   scale_fill_viridis_c(option = "plasma") 
-
-
-latam_polygon
 ```
 
 
 ```{r}
-coordinates(pmp_meta) <- ~lon+lat
-proj4string(pmp_meta) <- raster::CRS("+proj=longlat +datum=WGS84")
-
-# Create 12 km buffers around each point
-buffer_distance <- 12000  # 12 km in meters
-buffers <- gBuffer(pmp_meta, width = buffer_distance, byid = TRUE)
-
-# Plot the points and their corresponding buffers
-#plot(buffers, col = rgb(0, 0, 1, 0.3), main = "Buffers Around Points", xlab = "Longitude", ylab = "Latitude")
-#points(pmp_meta, col = "red", pch = 16, cex = 1.5)  # Plot the points on top
-
-# Optionally, use ggplot2 for a more customized plot
-#library(ggplot2)
-# Convert buffers to a data frame for ggplot
-#buffers_df <- fortify(buffers)
-
-ggplot() +
-  geom_polygon(data = fortify(buffers), aes(x = long, y = lat, group = group), fill = "blue", alpha = 0.3) +
-  geom_point(data = pmp_meta@data, aes(x = lon, y = lat), color = "red", size = 3) +
-  coord_fixed(ratio = 1) +
-  labs(title = "Buffers Around Points", x = "Longitude", y = "Latitude")
+pmp_ecological <- inner_join(pmp_meta, pmp_meta_df) |>
+  inner_join(pmp_ecological) |>
+  dplyr::select(ID, hill_n2, human_footprint_exact, human_footprint_avg12km)
 ```
+
+#=====
+# Ahora obtenemos el indice de fragmentcion de la vegetacion
+
+
+Global Forest Fragmentation 
+Ma et al. 2023: https://figshare.com/s/21dbf1f50250aeb7f5a0 
+
+El raster original es de resolucion 5km (i. est. each pixel is 5km per side)
+```{r, warning=FALSE}
+input_file <- "Input data/FFI2000.tif"
+output_file <- "Output_data/FFI2000_reprojected.tif"
+
+# Reproject with gdalwarp
+#gdalUtilities::gdalwarp(srcfile = input_file, dstfile = output_file, t_srs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0 +no_defs")
+```
+
+
+
+```{r}
+raster_raw <- raster::raster(output_file)
+
+forest_raster <- raster_raw |>
+  raster::crop(raster::extent(-108, -33, -40, 25)) |> 
+  raster::mask(latam_polygon)
+
+forest_raster
+
+#forest_tibble <- raster_raw |>
+  #raster::crop(raster::extent(-108, -33, -40, 25)) |> 
+  #raster::mask(latam_polygon) |>
+  #raster::rasterToPoints() |>
+  #as_tibble() |>
+  #rename( = HFP2009_reprojected)
+
+```
+
+
+```{r}
+pmp_meta$forest_fragment_exact <- raster::extract(forest_raster, pmp_meta[, c("lon", "lat")])
+```
+
+
+```{r}
+pmp_ecological <- inner_join(pmp_meta, pmp_ecological) |>
+  dplyr::select(ID, hill_n2, human_footprint_exact, human_footprint_avg12km, forest_fragment_exact)
+```
+
+
+```{r}
+# Create a list containing the three objects
+data_list <- list(pmp_meta = pmp_meta, pmp_pollen = pmp_pollen, pmp_ecological = pmp_ecological)
+
+# Save the list as an .rds file
+saveRDS(data_list, file = "Pmodern_revised.rds")
+
+```
+
+
+
+
 
 
 
@@ -351,7 +365,11 @@ ggplot2::ggplot() +
 
 
 ```{r}
+pmp_meta
 
+pmp_pollen
+
+pmp_ecological
 ```
 
 
