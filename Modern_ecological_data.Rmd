@@ -4,6 +4,11 @@ output: html_document
 date: "2024-11-26"
 ---
 
+```{r}
+library(tidyverse)
+```
+
+
 Dataset for extracting the environmental data for each sample of the database
 
 
@@ -21,32 +26,6 @@ pmp_pollen <- pmodern$pollen_percent
 
 
 
-```{r}
-#Hill number
-poll_clim_amalg2_hill <- poll_clim_amalg2 %>%
-   dplyr::select(Abatia:Zygophyllaceae) |>
-    analogue::n2("sites") |>
-  as_tibble() |>
-  rename(hill_n2 = value)
-
-
-poll_clim_amalg2_hill_1 <- bind_cols(poll_clim_amalg2, poll_clim_amalg2_hill) |>
-  select(id_sample,entity_name,latitude,longitude,elevation,hill_n2, everything())
-
-
-poll_clim_amalg2_hill_1 |>
-  ggplot2::ggplot(aes(x=hill_n2)) +
-  geom_histogram(bins = 100, color="gray60", fill="gray60") +
-  scale_x_continuous(n.breaks = 18, expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,4)) +
-  geom_vline(xintercept = 2, linetype="dotted", 
-                color = "red", size=0.8) + 
-  labs(title = "Hill number", subtitle = "Modern (training) dataset") +
-  theme_test()
-```
-
-
-
 #Calculation of the Hill number
 ```{r}
 hill <- pmp_pollen |>
@@ -56,11 +35,11 @@ hill <- pmp_pollen |>
   rename(hill_n2 = value)
   
 
-ecological <- bind_cols(pmp_pollen, hill) |>
+pmp_ecological <- bind_cols(pmp_pollen, hill) |>
   select(ID, hill_n2)
 
 
-ggplot2::ggplot(data=ecological, aes(x=hill_n2)) +
+ggplot2::ggplot(data=pmp_ecological, aes(x=hill_n2)) +
   geom_histogram(bins = 100, color="gray60", fill="gray60") +
   scale_x_continuous(n.breaks = 20, expand = c(0,0)) +
  # geom_vline(xintercept = 2, linetype="dotted",  color = "red", size=0.8) + 
@@ -76,43 +55,27 @@ latam_polygon <- rnaturalearth::ne_countries(scale = 'large', returnclass = "sf"
   sf::st_union() |>
   sf::st_crop(ymin = -34, ymax = 22, xmin=-106, xmax=-35) |>
   sf::st_as_sf() 
-  
 
+sh_polygon <- rnaturalearth::ne_countries(scale = 'large', returnclass = "sf") %>% filter(name %in% c("Venezuela", "Colombia", "Guyana", "Suriname", "France", "Antigua and Barbuda", "Dominica", "Ecuador", "Peru", "Uruguay", "Bolivia", "Paraguay", "Argentina", "Chile", "Brazil")) |>
+  sf::st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0 +units=m +no_defs") |>
+  sf::st_crop(xmin = -85, xmax = -30, ymin = -60, ymax = 11) |> sf::st_union() |>
+  sf::st_as_sf() 
+
+nh_polygon <- rnaturalearth::ne_countries(scale = 'large', returnclass = "sf") %>%
+  filter(name %in% c("Mexico","Belize","Guatemala","Honduras","El Salvador","Nicaragua","Costa Rica","Panama", "Venezuela", "Colombia", "Guyana", "Suriname", "France", "Antigua and Barbuda", "Dominica", "Ecuador","Brazil")) |>
+  sf::st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0 +units=m +no_defs") |>
+  sf::st_crop(xmin = -110, xmax = -50, ymin = 5, ymax = 22) |> sf::st_union() |>
+  sf::st_as_sf()
+
+ggplot2::ggplot() + ggplot2::geom_sf(data = sh_polygon) + ggplot2::theme_minimal()
+ggplot2::ggplot() + ggplot2::geom_sf(data = nh_polygon) + ggplot2::theme_minimal()
 ggplot2::ggplot() + ggplot2::geom_sf(data = latam_polygon) + ggplot2::theme_minimal()
 ```
 
-
-
-```{r}
-maps <- st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Input/Precipitation_polygon/my_new_polygon.shp") |> filter(Value == 17)
-p2_EPA_north_andes <- sf::st_intersection(maps, sh_polygon) |> filter(Value == "17")
-ggplot() + geom_sf(data = p2_EPA_north_andes) 
-
-p0_andes <- st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/andes_level_17_18.shp")
-ggplot() + geom_sf(data = p0_andes)
-
-p3_north_andes <- st_read("Output_data/north_andes.shp")
-ggplot() + geom_sf(data = p3_north_andes) 
-
-p1_north_hemis <- st_read("Output_data/mean_summer_regions_sf_nh_1.shp")
-ggplot() + geom_sf(data = p1_north_hemis)
-
-p4_sasm2 <- st_read("Output_data/sasm_core2.shp")
-ggplot() + geom_sf(data = p4_sasm2)
-
-p5_sasm3 <- st_read("Output_data/sasm_core3.shp")
-ggplot() + geom_sf(data = p5_sasm3)
-
-p6_sasm4 <- st_read("Output_data/sasm_core2_noITCZ_3.shp")
-#p6_sasm4 <- sf::st_make_valid(p6_sasm4)
-ggplot() + geom_sf(data = p6_sasm4, fill="red")
-```
-
-
+# Global terrestrial human footprint
 
 We start by the Global terrestrial human footprint
 Venter et al. 2016: https://datadryad.org/stash/dataset/doi:10.5061/dryad.052q5
-
 
 El raster original es de resolucion 1km (i. est. each pixel is 1km per side)
 ```{r, warning=FALSE}
@@ -124,30 +87,266 @@ output_file <- "C:/Users/esmer/UoR/Anthropogenic biomes/Global terrestrial human
 ```
 
 
-```{r}
-footprint_raster <- raster::raster(output_file)
 
-footprint <- footprint_raster |>
+```{r}
+raster_raw <- raster::raster(output_file)
+
+footprint_raster <- raster_raw |>
   raster::crop(raster::extent(-108, -33, -40, 25)) |> 
-  raster::mask(latam_polygon) |>
-  raster::rasterToPoints() |>
-  as_tibble() |>
-  rename(Pressure = HFP2009_reprojected)
+  raster::mask(latam_polygon)
+
+
+#footprint_tibble <- raster_raw |>
+  #raster::crop(raster::extent(-108, -33, -40, 25)) |> 
+  #raster::mask(latam_polygon) |>
+  #raster::rasterToPoints() |>
+  #as_tibble() |>
+  #rename(Pressure = HFP2009_reprojected)
+```
+
+
+```{r}
+pmp_meta$human_footprint_exact <- raster::extract(footprint_raster, pmp_meta[, c("lon", "lat")])
+```
+
+
+```{r}
+library(raster)
+library(sp)
+
+
+library(sf)
+```
+
+
+```{r}
+# Step 1: Convert pmp_meta to an sf object
+pmp_meta_sf <- st_as_sf(pmp_meta, coords = c("lon", "lat"), crs = 4326)
+
+# Step 2: Create a 12 km buffer around each point (CRS 4326 uses degrees, so we will reproject to meters)
+pmp_meta_sf <- st_transform(pmp_meta_sf, crs = 3395)  # Reproject to a CRS with meters (EPSG:3395)
+
+# Create a 12 km buffer (12,000 meters)
+pmp_meta_sf$buffer <- st_buffer(pmp_meta_sf, dist = 12000)
+
+ggplot() +
+  geom_sf(data = pmp_meta_sf$buffer, fill = "transparent", colour="blue") +  # Plot
+  geom_sf(data=pmp_meta_sf$geometry, size = 0.5, colour="red") +
+  labs(title = "Sample Points with 12 km Buffers") +
+  theme_minimal()
+
+# Step 3: Reproject the raster to the same CRS as the points (EPSG:3395)
+footprint_raster_3395 <- projectRaster(footprint_raster, crs = CRS("+init=epsg:3395"))
+
+#writeRaster(footprint_raster_3395, "Output_data/footprint_raster_3395.tif", format = "GTiff", overwrite = TRUE)
+
+# Step 4: Extract raster values within the buffer
+#pmp_meta_sf$HFP2009_values <- extract(footprint_raster_3395, pmp_meta_sf$buffer, 
+                                      # fun = function(x, ...) {
+                                          # if (length(x) > 0) {
+                                             #  x <- na.omit(x) # Remove NA values before processing
+                                               # Return the frequency of each value
+                                              # freq_table <- table(x)
+                                              # return(freq_table)
+                                           #} else {
+                                              # return(NA)
+                                          # }
+                                       #})
+
+#saveRDS(pmp_meta_sf, "Output_data/pmp_meta_sf.rds")
+
+#pmp_meta_sf <- readRDS("Output_data/pmp_meta_sf.rds")
+
+
+pmp_meta_sf$HFP2009_avg <- extract(footprint_raster_3395, pmp_meta_sf$buffer, 
+                                    fun = function(x, ...) {
+                                        if (length(x) > 0) {
+                                            # Remove NA values before processing
+                                            x <- na.omit(x)
+                                            # Calculate the average (mean) of the values
+                                            return(mean(x))
+                                        } else {
+                                            return(NA)
+                                        }
+                                    })
+
+
+#saveRDS(pmp_meta_sf, "Output_data/pmp_meta_sf_average.rds")
+
+pmp_meta_sf <- readRDS("Output_data/pmp_meta_sf_average.rds")
+
+pmp_meta_sf <- st_transform(pmp_meta_sf, st_crs(latam_polygon))
+
+# Step 2: Extract coordinates, drop geometry, and convert the buffer column to numeric
+pmp_meta_df <- pmp_meta_sf %>%
+  mutate(
+    Pressure_avg12km = as.numeric(HFP2009_avg), # Convert matrix to numeric
+    longitude = st_coordinates(.)[, 1],   # Extract longitude
+    latitude = st_coordinates(.)[, 2]     # Extract latitude
+  ) %>%
+  st_drop_geometry() %>%                  # Remove spatial geometry
+  dplyr::select(-buffer)     
+
+
+ggplot() + 
+  geom_sf(data = latam_polygon) + 
+  theme_minimal() +
+  geom_point(data = pmp_meta_df, 
+             aes(x = longitude, y = latitude, fill = Pressure_avg12km, color = Pressure_avg12km), size=0.5) +
+  scale_color_viridis_c(option = "plasma") + # Optional: Adjust the color scale
+  scale_fill_viridis_c(option = "plasma") 
+
+
+latam_polygon
+```
+
+
+```{r}
+coordinates(pmp_meta) <- ~lon+lat
+proj4string(pmp_meta) <- raster::CRS("+proj=longlat +datum=WGS84")
+
+# Create 12 km buffers around each point
+buffer_distance <- 12000  # 12 km in meters
+buffers <- gBuffer(pmp_meta, width = buffer_distance, byid = TRUE)
+
+# Plot the points and their corresponding buffers
+#plot(buffers, col = rgb(0, 0, 1, 0.3), main = "Buffers Around Points", xlab = "Longitude", ylab = "Latitude")
+#points(pmp_meta, col = "red", pch = 16, cex = 1.5)  # Plot the points on top
+
+# Optionally, use ggplot2 for a more customized plot
+#library(ggplot2)
+# Convert buffers to a data frame for ggplot
+#buffers_df <- fortify(buffers)
+
+ggplot() +
+  geom_polygon(data = fortify(buffers), aes(x = long, y = lat, group = group), fill = "blue", alpha = 0.3) +
+  geom_point(data = pmp_meta@data, aes(x = lon, y = lat), color = "red", size = 3) +
+  coord_fixed(ratio = 1) +
+  labs(title = "Buffers Around Points", x = "Longitude", y = "Latitude")
 ```
 
 
 
 ```{r}
 plot_hfp <- ggplot() + 
-  geom_sf(data = latam_polygon) +
+  geom_sf(data = latam_polygon, fill="transparent") +
   geom_tile(data = footprint, aes(x = x, y = y, fill = Pressure)) + 
-  scico::scale_fill_scico(palette = 'lipari', begin = 0.05) +
-  labs(title = "The human footprint map for 2009", subtitle = "Venter et al. 2016") +
-  scale_x_continuous(expand = c(0.05,0.05)) +
-  theme_test()
+  scico::scale_fill_scico(palette = 'lipari') +
+  scico::scale_colour_scico(palette = 'lipari') +
+  geom_point(data = pmp_meta, aes(x=lon, y=lat), shape =21, fill="white", colour="gray20", stroke = 0.1, size=0.45) +
+  labs(subtitle = "Terrestrial human footprint (Venter et al. 2016)") +
+  scale_x_continuous(expand = c(0.015,0.015)) +
+  scale_y_continuous(expand = c(0.015,0.015)) +
+  ggspatial::annotation_north_arrow(location = "tr", which_north = "true",height = unit(4.8, "mm"), width = unit(4.8, "mm"), pad_x = unit(2, "mm"), pad_y = unit(2, "mm"),style = ggspatial::north_arrow_nautical(fill = c("grey40", "white"),line_col = "grey20", text_family = "Book Antiqua",text_size = 5.5)) #+  # "Mongolian Baiti"
+  # theme(plot.subtitle = element_text(size = 7.5),
+        # panel.background = element_rect(fill="transparent",color="transparent"),
+        # panel.border = element_rect(fill="transparent",color="black"),
+       # panel.grid = element_blank(),
+       # axis.title.x = element_text(size=7.5,color = "black"),
+       # axis.title.y = element_text(size=7.5, angle=90),
+       # axis.text.x = element_text(size=7.5),
+       # axis.text.y = element_text(size=7.5),
+       # legend.key.size = unit(0.28,"cm"),
+       # legend.text.align = 0,
+       # legend.text=element_text(size=7.5),
+       # legend.title.align = 0.5,
+       # legend.title = element_text(size = 7.5),
+       # legend.margin = margin(unit = "cm", t=0.05,r=0.08,b=0.1,l=0.08),
+       # legend.box.background = element_rect(fill=alpha('white', 0.2),color="gray30",size = 0.15,),
+       # legend.background = element_rect(fill=alpha('white', 0.45),color="gray30",size = 0.25),
+       # legend.position = c(0.13, 0.13),
+       # plot.margin = margin(0, 0, 0, 0)) 
 
 plot_hfp
 ```
+
+
+```{r}
+ggsave(plot = plot_hfp, "Output_figures/Human_footprint.jpg", 
+       units = "cm", width = 10, height = 10, dpi = 700, quality = 100)
+```
+
+
+
+Here it is we obtain the human impact for each sample without using a buffer
+```{r}
+# Convert pmp_meta and footprint to sf objects (coordinates in WGS84: EPSG:4326)
+pmp_meta_sf <- sf::st_as_sf(pmp_meta, coords = c("lon", "lat"), crs = 4326)
+footprint_sf <- sf::st_as_sf(footprint, coords = c("x", "y"), crs = 4326)
+
+# Perform a spatial join to find the nearest pressure value for each point in pmp_meta
+# st_nearest_join finds the nearest feature
+joined_sf <- sf::st_nearest_join(pmp_meta_sf, footprint_sf, by = c("lon" = "x", "lat" = "y"))
+
+# Extract the joined result, including "Pressure"
+result_df <- as_tibble(joined_sf) %>%
+  select(ID, sample, sourcetype, lon, lat, Elevation, Pressure)
+
+# View the result
+print(result_df)
+```
+
+
+
+
+
+```{r}
+sample_n(pmp_meta, size = 3)
+
+sample_n(footprint, size = 3)
+```
+
+
+
+
+
+
+
+
+
+```{r}
+maps <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Input/Precipitation_polygon/my_new_polygon.shp") |> 
+  filter(Value == 17)
+p2_EPA_north_andes <- sf::st_intersection(maps, sh_polygon) |>
+  filter(Value == "17")
+
+p0_andes <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/andes_level_17_18.shp")
+p3_north_andes <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/north_andes.shp")
+p1_north_hemis <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/mean_summer_regions_sf_nh_1.shp")
+p4_sasm2 <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/sasm_core2.shp")
+p5_sasm3 <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/sasm_core3.shp")
+p6_sasm4 <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Output_data/sasm_core2_noITCZ_3.shp")
+p6_sasm4 <- sf::st_make_valid(p6_sasm4)
+
+
+ggplot2::ggplot() + 
+  ggplot2::geom_sf(data = latam_polygon) + 
+  geom_sf(data = p2_EPA_north_andes, colour="pink", fill="pink", alpha = 0.5) +
+  geom_sf(data = p0_andes, colour="skyblue1", fill="skyblue1", alpha = 0.4) +
+  geom_sf(data = p3_north_andes, colour = "palegreen", fill= "palegreen", alpha = 0.3) +
+  geom_sf(data = p1_north_hemis, colour = "orchid1", fill= "orchid1", alpha = 0.1) +
+ # geom_sf(data = p5_sasm3, colour="salmon", fill="salmon", alpha = 0.3) +
+ 
+  # geom_sf(data = p6_sasm4, colour="red", fill="red", alpha  = 0.1) +
+   # geom_sf(data = p4_sasm2, colour="khaki1", fill="khaki1", alpha = 0.3) +
+  ggplot2::theme_minimal()
+```
+
+
+```{r}
+maps <- sf::st_read("C:/Users/esmer/UoR/latam_climate_reconstruction/Input/Precipitation_polygon/my_new_polygon.shp") 
+maps1 <- sf::st_intersection(maps, nh_polygon) 
+
+ggplot2::ggplot() + 
+  ggplot2::geom_sf(data = nh_polygon) +  
+  geom_sf(data = filter(maps1, !Value%in%c(0,10,9)), aes(fill=Value, colour=Value), alpha = 0.3) +
+ # ggplot2::geom_point(data = filter(pmp_meta, lat > 5), aes(x=lon, y=lat), size=0.3) +
+ # geom_hline(yintercept=18, linetype="dashed", color = "red") +
+  #geom_vline(xintercept=-95, linetype="dashed", color = "red") +
+  #geom_vline(xintercept=-91.85, linetype="dashed", color = "blue")
+```
+
+
 
 
 
