@@ -1,0 +1,66 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-01-14"
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+p_revised <- readRDS("Pmodern_revised.rds")
+```
+
+
+```{r}
+pmp_meta <- p_revised$pmp_meta 
+
+p_rev0 <- p_revised$pmp_meta |>
+  filter(sample != "Darien")
+
+p_rev0_darien <- p_revised$pmp_meta |>
+  filter(sample == "Darien")
+```
+
+
+```{r}
+bush_sites <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appendix 1 site information") |>
+  janitor::clean_names() |>
+  dplyr::select(site_name, reference) |>
+  dplyr::distinct() |>
+  filter(site_name != "Darien")
+
+
+bush_darien <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appendix 1 site information") |>
+  janitor::clean_names() |>
+  dplyr::select(sample_number, site_name, latitude, longitude, elevation,  reference) |>
+  dplyr::distinct() |>
+  filter(site_name == "Darien")
+```
+
+
+
+```{r}
+p_rev1 <- p_rev0 |>
+  left_join(bush_sites, by = c("sample" = "site_name"))
+
+p_rev0_darien <- p_rev0_darien |>
+  mutate(reference = case_when(ID == 170 ~ "Bush et al. 2000",
+                                ID == 171 ~ "Bush et al. 2001",
+                                ID == 172 ~ "Bush et al. 2002",
+                                ID == 173 ~ "Bush et al. 2003",
+                                ID == 174 ~ "Bush et al. 2004",
+                                ID == 175 ~ "Bush et al. 2005",
+                                ID == 176 ~ "Bush et al. 2005"))
+
+p_rev2 <- bind_rows(p_rev1, p_rev0_darien)
+```
+
+
+
+
+
+
+
