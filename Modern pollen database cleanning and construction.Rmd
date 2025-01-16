@@ -153,6 +153,13 @@ saveRDS(pmodern3, "Pmodern_revised.rds")
 ```
 
 
+```{r}
+# Create a list containing the three objects
+data_list <- list(pmp_meta = pmodern3_meta, pmp_pollen = pmodern3_pollen_percent)
+
+# Save the list as an .rds file
+saveRDS(data_list, file = "Pmodern_revised.rds")
+```
 
 
 
