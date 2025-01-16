@@ -6,6 +6,9 @@ date: "2024-11-26"
 
 ```{r}
 library(tidyverse)
+library(sf)
+
+library(raster)
 ```
 
 
@@ -20,8 +23,8 @@ pmodern <- readRDS("Pmodern_revised.rds")
 
 
 ```{r}
-pmp_meta <- pmodern$metadata
-pmp_pollen <- pmodern$pollen_percent
+pmp_meta <- pmodern$pmp_meta
+pmp_pollen <- pmodern$pmp_pollen
 ```
 
 
@@ -172,6 +175,7 @@ ggplot() +
 ```
 
 
+
 ```{r}
 pmp_ecological <- inner_join(pmp_meta, pmp_meta_df) |>
   inner_join(pmp_ecological) |>
@@ -221,7 +225,7 @@ pmp_meta$forest_fragment_exact <- raster::extract(forest_raster, pmp_meta[, c("l
 
 
 ```{r}
-pmp_ecological <- inner_join(pmp_meta, pmp_ecological) |>
+pmp_ecological <- left_join(pmp_meta, pmp_ecological) |>
   dplyr::select(ID, hill_n2, human_footprint_exact, human_footprint_avg12km, forest_fragment_exact)
 ```
 
