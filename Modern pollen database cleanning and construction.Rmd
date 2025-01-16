@@ -49,10 +49,10 @@ pmodern1 <- pmodern0 |>
          Gomphrena = Gomphrena + Gomphrena_1,
          Symmeria = Symmeria + Symmeria_1,
          Xylosma = Xylosma + Xylosma_1) |>
-  select(-c(Cayaponia_1, Cupania_1, Symphonia_1, Daphnopsis_1, Gomphrena_1, Symmeria_1, Xylosma_1)) |>
+  dplyr::select(-c(Cayaponia_1, Cupania_1, Symphonia_1, Daphnopsis_1, Gomphrena_1, Symmeria_1, Xylosma_1)) |>
   mutate(`Combretaceae/Melastomataceae` =  `Combretaceae/Melastomataceae` + Combretaceae,
          Salicaceae = Salicaceae + Flacourtiaceae) |> #sum the Combretaceae to the Combretaceae/Melastomataceae
-  select(-c(Combretaceae, Flacourtiaceae)) |>
+  dplyr::select(-c(Combretaceae, Flacourtiaceae)) |>
   rename(Fabaceae = FabPapil)
   
 #Look for the persistence of duplicates
@@ -82,7 +82,7 @@ pmodern2 <- pmodern1 |>
   mutate(suma = rowSums(across(Abies:Zollernia), na.rm = TRUE))
 
 pmodern2 |>
-  select(suma) |>
+  dplyr::select(suma) |>
   ggplot() +
   geom_histogram(aes(x=suma), binwidth = 0.5)
 ```
@@ -105,7 +105,7 @@ pmodern2 <- pmodern1 |>
 
 pmodern2 |>
   filter(suma < 0.95 ) |>
-  select(ID, sample,suma) |>
+  dplyr::select(ID, sample,suma) |>
   distinct() 
 
 
@@ -120,15 +120,15 @@ pmodern2 <- pmodern2 |>
 
 ```{r}
 pmodern3 <- pmodern2 |>
-  select(-c(suma)) |>
+  dplyr::select(-c(suma)) |>
   arrange(name) |>
   pivot_wider(id_cols = c(ID,sample,sourcetype,lon,lat,Elevation),values_fill = 0)
   
 
 pmodern3_meta <- pmodern3 |>
-  select(ID:Elevation)
+  dplyr::select(ID:Elevation)
 
-pmodern3_pollen_percent <- pmodern3 |> select(-c(sample,sourcetype,lon,lat,Elevation))
+pmodern3_pollen_percent <- pmodern3 |> dplyr::select(-c(sample,sourcetype,lon,lat,Elevation))
 ```
 
 
@@ -136,7 +136,7 @@ pmodern3_pollen_percent <- pmodern3 |> select(-c(sample,sourcetype,lon,lat,Eleva
 #knowing duplicated names in `sample` column
 pmodern3_meta %>%
   filter(sample %in% sample[duplicated(sample)]) |>
-  select(sample) |>
+  dplyr::select(sample) |>
   group_by(sample) |>
   add_tally() |>
   ungroup() |>
