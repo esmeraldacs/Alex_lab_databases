@@ -26,21 +26,21 @@ p_rev0_darien <- p_revised$pmp_meta |>
 
 
 ```{r}
-bush_sites <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appendix 1 site information") |>
+bush_sites <- readxl::read_excel("Input data/Bush_2020_database.xlsx", sheet = "Appendix 1 site information") |>
   janitor::clean_names() |>
   dplyr::select(site_name, reference) |>
   dplyr::distinct() |>
   filter(site_name != "Darien")
 
 
-bush_sites_lat_lon <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appendix 1 site information") |>
+bush_sites_lat_lon <- readxl::read_excel("Input data/Bush_2020_database.xlsx", sheet = "Appendix 1 site information") |>
   janitor::clean_names() |>
   dplyr::select(site_name, reference, longitude, latitude) |>
   dplyr::distinct() |>
   filter(site_name != "Darien")
 
 
-bush_darien <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appendix 1 site information") |>
+bush_darien <- readxl::read_excel("Input data/Bush_2020_database.xlsx", sheet = "Appendix 1 site information") |>
   janitor::clean_names() |>
   dplyr::select(sample_number, site_name, latitude, longitude, elevation,  reference) |>
   dplyr::distinct() |>
@@ -48,7 +48,7 @@ bush_darien <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appe
 ```
 
 
-
+Aqui pusimos manualmente las del referencias de los sitios Darien
 ```{r}
 p_rev1 <- p_rev0 |>
   left_join(bush_sites, by = c("sample" = "site_name"))
@@ -63,35 +63,81 @@ p_rev0_darien <- p_rev0_darien |>
                                 ID == 176 ~ "Bush et al. 2005"))
 
 p_rev2 <- bind_rows(p_rev1, p_rev0_darien)
+
+#Las muestras que qu
+p_rev2_na <- p_rev2 |> filter(is.na(reference)) 
 ```
 
 
 
+Aquí identificamos las tres muestras más cercanas para cada muestra sin referencia en `p_rev2_na`, utilizando la base de datos de Bush et al. 2020 (`bush_sites_lat_lon`). Esto es necesario porque los nombres pueden no coincidir exactamente entre las bases de datos debido a ligeras diferencias en la nomenclatura. Por esta razón, el resultado de este código debe ser revisado manualmente para confirmar que efectivamente corresponde al mismo sitio en ambas bases de datos.
+```{r}
+# Set the distance threshold in meters (e.g., 1000 meters or 1 km)
+distance_threshold <- 4000
+
+closest_points_bush <- p_rev2_na %>% 
+  rowwise() %>% 
+  mutate(
+    closest = list(
+      bush_sites_lat_lon %>% 
+        mutate(
+          distance = geosphere::distHaversine(
+            c(lon, lat),
+            cbind(longitude, latitude)
+          )
+        ) %>%
+        # Filter for distances below the threshold
+        filter(distance <= distance_threshold) %>%
+        slice_min(distance, n = 3) %>%
+        dplyr::select(site_name, reference, distance) %>%
+        rename(closest_reference = reference)  # Rename the reference column
+    )
+  ) %>% 
+  unnest(cols = closest)  # Unnest the closest list column
+
+```
+
+
+
+Ahora vamos a buscar identificar las muestras más cercanas para cada muestra sin referencia en `p_rev2_na`, utilizando la base de datos SMPDSv2.
+Impoertamos los datos
 ```{r}
 smpds <- smpds::SMPDSv2 |> smpds::snapshot()
+
+smp_sites <- smpds$entity |>
+  dplyr::select(source,site_name,entity_name,latitude,longitude, publication, doi) 
 ```
+
 
 
 
 ```{r}
-smp_sites <- smpds$entity |>
-  select(source,site_name,entity_name,latitude,longitude, publication, doi) #|>
- # filter(longitude < -20) |>
-  #filter(latitude < 40)
+# Set the distance threshold in meters (e.g., 1000 meters or 1 km)
+distance_threshold <- 2000
 
+closest_points_smpds <- p_rev2_na %>%
+  rowwise() %>%
+  mutate(
+    closest = list(
+      smp_sites %>%
+        mutate(
+          distance = geosphere::distHaversine(
+            c(lon, lat),
+            cbind(longitude, latitude)
+          )
+        ) %>%
+        # Filter for distances below the threshold
+        dplyr::filter(distance <= distance_threshold) %>%
+        slice_min(distance, n = 2) %>%
+        dplyr::select(site_name, entity_name, source, publication, distance)
+    )
+  ) %>%
+  unnest(cols = closest)  # Unnest the closest list column
 
-
-p_rev2_na <- p_rev2 |> filter(is.na(reference)) 
-
-
-
-
-glimpse(smp_sites)
-
-glimpse(p_rev2_na)
 ```
 
 
+Ahora bien, las que encontramos y verificamos manualmente con los codigos de las secciones anteriores lo agregamos
 
 ```{r}
 p_rev3 <- p_rev2 |> mutate(reference = case_when(ID == 722 ~ "Correa-Metrio et al. 2011",
@@ -112,13 +158,27 @@ p_rev3 <- p_rev2 |> mutate(reference = case_when(ID == 722 ~ "Correa-Metrio et a
                                                  ID == 708 ~ "Correa-Metrio et al. 2011",
                                                  ID == 747 ~ "Correa-Metrio et al. 2011", T ~ reference))
 
-p_rev3 <- p_rev3 |> mutate(publication = NA) |>
-  mutate(publication = case_when(reference == "Behling, H. 1993" ~ "Behling, H. 1993. Untersuchungen zur spätpleistozänen und holozänen Vegetations- und Klimageschichte der tropischen Küstenwälder und der Araukarienwälder in Santa Catarina (Südbrasilien). Dissertationes Botanicae 206. J Cramer, Berlin Stuttgart, Germany.; Behling, H. 1995. Investigations into the Late Pleistocene and Holocene history of vegetation and climate in Santa Catarina (S Brazil). Vegetation History and Archaeobotany 4:127-152.; Ledru, M.-P., H. Behling, M. Fournier, L. Martin, and M. Servant. 1994. Localisation de la forêt d'Araucaria du Brésil au cours de l'Holocène. Implications paléoclimatiques. C.R. Acad. Sci. Paris 317:517-521.",
-                                 reference == "Behling, H. 1995" ~ "Behling, H. 1995. A high resolution Holocene pollen record from Lago do Pires, SE Brazil: Vegetation, climate and fire history. Journal of Paleolimnology 14:253-268.",
-                                 reference == "Behling, H. 1997" ~ "Behling, H. 1997. Late Quaternary vegetation, climate and fire history in the Araucaria forest and campos region from Serra Campos Gerais (Paraná), S Brazil. Review of Palaeobotany and Palynology 97:109-121."))
+p_rev3 <- p_rev3 |>
+  mutate(reference = case_when(reference == "Bush 2000" ~ "Bush et al. 2000", 
+                               reference == "Correa-Metrio 2011" ~ "Correa-Metrio et al. 2011", 
+                               reference == "Correa-Metrio 2013" ~ "Correa-Metrio et al. 2013", T ~ reference))
+```
 
 
 
+
+```{r}
+ref_tab <- read.csv("references_table.csv")
+```
+
+
+
+```{r}
+p_rev3 <- p_rev3 |> left_join(ref_tab)
+```
+
+
+```{r}
 p_rev3 <- p_rev3 |> mutate(site_name = NA) |> 
   mutate(site_name = case_when(ID == 891 ~ "Serra da Boa Vista",
                                ID == 881 ~ "Lago do Pires",
@@ -132,64 +192,26 @@ p_rev3_na <- p_rev3 |>
 ```
 
 
+
 ```{r}
-# Set the distance threshold in meters (e.g., 1000 meters or 1 km)
-distance_threshold <- 4000
+p_rev3 <- p_rev3 |>
+  dplyr::select(ID, sample, site_name,everything()) 
 
-closest_points_bush <- p_rev2_na %>% 
-  rowwise() %>% 
-  mutate(
-    closest = list(
-      bush_sites_lat_lon %>% 
-        mutate(
-          distance = distHaversine(
-            c(lon, lat),
-            cbind(longitude, latitude)
-          )
-        ) %>%
-        # Filter for distances below the threshold
-        filter(distance <= distance_threshold) %>%
-        slice_min(distance, n = 3) %>%
-        select(site_name, reference, distance) %>%
-        rename(closest_reference = reference)  # Rename the reference column
-    )
-  ) %>% 
-  unnest(cols = closest)  # Unnest the closest list column
 
+# Create a list containing the three objects
+data_list <- list(pmp_meta = p_rev3, pmp_pollen =  p_revised$pmp_pollen, pmp_ecological = p_revised$pmp_ecological)
+
+# Save the list as an .rds file
+saveRDS(data_list, file = "Pmodern_revised.rds")
 ```
 
 
 
 
 
-```{r}
-# Set the distance threshold in meters (e.g., 1000 meters or 1 km)
-distance_threshold <- 2000
-
-closest_points <- p_rev2_na %>%
-  rowwise() %>%
-  mutate(
-    closest = list(
-      smp_sites %>%
-        mutate(
-          distance = distHaversine(
-            c(lon, lat),
-            cbind(longitude, latitude)
-          )
-        ) %>%
-        # Filter for distances below the threshold
-        dplyr::filter(distance <= distance_threshold) %>%
-        slice_min(distance, n = 2) %>%
-        select(site_name, entity_name, source, publication, distance)
-    )
-  ) %>%
-  unnest(cols = closest)  # Unnest the closest list column
-
-```
 
 
-
-
+Neotoma tests for finding references
 
 ```{r}
 # Load the neotoma2 package
