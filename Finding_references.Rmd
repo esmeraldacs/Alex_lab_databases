@@ -33,6 +33,13 @@ bush_sites <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appen
   filter(site_name != "Darien")
 
 
+bush_sites_lat_lon <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appendix 1 site information") |>
+  janitor::clean_names() |>
+  dplyr::select(site_name, reference, longitude, latitude) |>
+  dplyr::distinct() |>
+  filter(site_name != "Darien")
+
+
 bush_darien <- readxl::read_excel("Input data/Bush_database.xlsx", sheet = "Appendix 1 site information") |>
   janitor::clean_names() |>
   dplyr::select(sample_number, site_name, latitude, longitude, elevation,  reference) |>
@@ -60,7 +67,193 @@ p_rev2 <- bind_rows(p_rev1, p_rev0_darien)
 
 
 
+```{r}
+smpds <- smpds::SMPDSv2 |> smpds::snapshot()
+```
 
 
 
+```{r}
+smp_sites <- smpds$entity |>
+  select(source,site_name,entity_name,latitude,longitude, publication, doi) #|>
+ # filter(longitude < -20) |>
+  #filter(latitude < 40)
+
+
+
+p_rev2_na <- p_rev2 |> filter(is.na(reference)) 
+
+
+
+
+glimpse(smp_sites)
+
+glimpse(p_rev2_na)
+```
+
+
+
+```{r}
+p_rev3 <- p_rev2 |> mutate(reference = case_when(ID == 722 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 719 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 326 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 337 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 891 ~ "Behling, H. 1993",
+                                                 ID == 724 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 881 ~ "Behling, H. 1995",
+                                                 ID == 726 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 893 ~ "Behling, H. 1993",
+                                                 ID == 889 ~ "Behling, H. 1993",
+                                                 ID == 889 ~ "Behling, H. 1993",
+                                                 ID == 886 ~ "Behling, H. 1997",
+                                                 ID == 903 ~ "Behling, H. 1997",
+                                                 ID == 716 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 748 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 708 ~ "Correa-Metrio et al. 2011",
+                                                 ID == 747 ~ "Correa-Metrio et al. 2011", T ~ reference))
+
+p_rev3 <- p_rev3 |> mutate(publication = NA) |>
+  mutate(publication = case_when(reference == "Behling, H. 1993" ~ "Behling, H. 1993. Untersuchungen zur spätpleistozänen und holozänen Vegetations- und Klimageschichte der tropischen Küstenwälder und der Araukarienwälder in Santa Catarina (Südbrasilien). Dissertationes Botanicae 206. J Cramer, Berlin Stuttgart, Germany.; Behling, H. 1995. Investigations into the Late Pleistocene and Holocene history of vegetation and climate in Santa Catarina (S Brazil). Vegetation History and Archaeobotany 4:127-152.; Ledru, M.-P., H. Behling, M. Fournier, L. Martin, and M. Servant. 1994. Localisation de la forêt d'Araucaria du Brésil au cours de l'Holocène. Implications paléoclimatiques. C.R. Acad. Sci. Paris 317:517-521.",
+                                 reference == "Behling, H. 1995" ~ "Behling, H. 1995. A high resolution Holocene pollen record from Lago do Pires, SE Brazil: Vegetation, climate and fire history. Journal of Paleolimnology 14:253-268.",
+                                 reference == "Behling, H. 1997" ~ "Behling, H. 1997. Late Quaternary vegetation, climate and fire history in the Araucaria forest and campos region from Serra Campos Gerais (Paraná), S Brazil. Review of Palaeobotany and Palynology 97:109-121."))
+
+
+
+p_rev3 <- p_rev3 |> mutate(site_name = NA) |> 
+  mutate(site_name = case_when(ID == 891 ~ "Serra da Boa Vista",
+                               ID == 881 ~ "Lago do Pires",
+                               ID == 893 ~ "Morro da Igreja",
+                               ID == 889 ~ "Poço Grande",
+                               ID== 886 ~ "Serra Campos Gerais",
+                               ID == 903 ~ "Morro de Itapeva"))
+
+p_rev3_na <- p_rev3 |> 
+  dplyr::filter(is.na(reference))
+```
+
+
+```{r}
+# Set the distance threshold in meters (e.g., 1000 meters or 1 km)
+distance_threshold <- 4000
+
+closest_points_bush <- p_rev2_na %>% 
+  rowwise() %>% 
+  mutate(
+    closest = list(
+      bush_sites_lat_lon %>% 
+        mutate(
+          distance = distHaversine(
+            c(lon, lat),
+            cbind(longitude, latitude)
+          )
+        ) %>%
+        # Filter for distances below the threshold
+        filter(distance <= distance_threshold) %>%
+        slice_min(distance, n = 3) %>%
+        select(site_name, reference, distance) %>%
+        rename(closest_reference = reference)  # Rename the reference column
+    )
+  ) %>% 
+  unnest(cols = closest)  # Unnest the closest list column
+
+```
+
+
+
+
+
+```{r}
+# Set the distance threshold in meters (e.g., 1000 meters or 1 km)
+distance_threshold <- 2000
+
+closest_points <- p_rev2_na %>%
+  rowwise() %>%
+  mutate(
+    closest = list(
+      smp_sites %>%
+        mutate(
+          distance = distHaversine(
+            c(lon, lat),
+            cbind(longitude, latitude)
+          )
+        ) %>%
+        # Filter for distances below the threshold
+        dplyr::filter(distance <= distance_threshold) %>%
+        slice_min(distance, n = 2) %>%
+        select(site_name, entity_name, source, publication, distance)
+    )
+  ) %>%
+  unnest(cols = closest)  # Unnest the closest list column
+
+```
+
+
+
+
+
+```{r}
+# Load the neotoma2 package
+library(neotoma2)
+
+# Define the bounding box for Latin America
+# Latitude: approx -55 to 23 degrees
+# Longitude: approx -118 to -34 degrees
+lat_range <- c(-55, 23)
+lon_range <- c(-118, -34)
+
+# Use get_sites to filter by dataset type and geographic extent
+latin_america_pollen_sites <- get_sites(
+  loc = c(lon_range[1], lat_range[1], lon_range[2], lat_range[2]), 
+  datasettype = "pollen"
+)
+
+neotoma_sites <- as.data.frame(latin_america_pollen_sites ) |>
+  as_tibble()
+
+neotoma_sites
+```
+
+
+
+```{r}
+# Use get_sites to filter by dataset type and geographic extent
+latin_america_surface <- get_sites(
+  loc = c(lon_range[1], lat_range[1], lon_range[2], lat_range[2]), 
+  datasettype = "pollen surface sample"
+)
+
+neotoma_surface <- as.data.frame(latin_america_surface) |>
+  as_tibble()
+
+neotoma_surface
+```
+
+
+```{r}
+# Use get_sites to filter by dataset type and geographic extent
+latin_america_trap <- get_sites(
+  loc = c(lon_range[1], lat_range[1], lon_range[2], lat_range[2]), 
+  datasettype = "pollen trap"
+)
+
+neotoma_trap <- as.data.frame(latin_america_surface) |>
+  as_tibble()
+
+neotoma_trap
+```
+
+
+
+```{r}
+ggplot() +
+  geom_point(data = neotoma_sites, aes(x=long, y=lat), colour="blue", size=1.5) +
+  geom_point(data = p_rev3_na, aes(x=lon, y=lat), colour="red", size=0.5)
+
+
+ggplot() +
+  geom_point(data = neotoma_surface, aes(x=long, y=lat), colour="blue", size=1.5) +
+  geom_point(data = p_rev3_na, aes(x=lon, y=lat), colour="red", size=0.5)
+  
+  
+```
 
