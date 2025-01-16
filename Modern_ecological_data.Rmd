@@ -39,7 +39,7 @@ hill <- pmp_pollen |>
   
 
 pmp_ecological <- bind_cols(pmp_pollen, hill) |>
-  select(ID, hill_n2)
+  dplyr::select(ID, hill_n2)
 
 
 ggplot2::ggplot(data=pmp_ecological, aes(x=hill_n2)) +
@@ -232,7 +232,7 @@ pmp_ecological <- left_join(pmp_meta, pmp_ecological) |>
 
 ```{r}
 # Create a list containing the three objects
-data_list <- list(pmp_meta = pmp_meta, pmp_pollen = pmp_pollen, pmp_ecological = pmp_ecological)
+data_list <- list(pmp_meta = pmodern$pmp_meta, pmp_pollen = pmp_pollen, pmp_ecological = pmp_ecological)
 
 # Save the list as an .rds file
 saveRDS(data_list, file = "Pmodern_revised.rds")
